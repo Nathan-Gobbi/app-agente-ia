@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<!-- Copyright 2026 Nathan Gobbi
+     License AGPL-3.0 or later (https://www.gnu.org/licenses/agpl). -->
+<odoo>
+    <record id="res_config_settings_view_form_ai_assistant" model="ir.ui.view">
+        <field name="name">res.config.settings.view.form.ai.assistant</field>
+        <field name="model">res.config.settings</field>
+        <field name="inherit_id" ref="base.res_config_settings_view_form" />
+        <field name="arch" type="xml">
+            <xpath expr="//form" position="inside">
+                <app string="Odoo AI" name="ai_assistant" groups="base.group_system">
+                    <block title="OpenAI">
+                        <setting
+                            string="API key"
+                            help="Used only for requests made by the AI assistant. An environment variable takes precedence."
+                        >
+                            <field name="ai_assistant_openai_api_key" password="True" />
+                        </setting>
+                        <setting string="Model" help="OpenAI model identifier.">
+                            <field name="ai_assistant_openai_model" />
+                        </setting>
+                    </block>
+                </app>
+            </xpath>
+        </field>
+    </record>
+</odoo>

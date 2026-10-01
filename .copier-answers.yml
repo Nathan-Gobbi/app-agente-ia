@@ -1,0 +1,23 @@
+_commit: v1.11.3
+_src_path: gh:oca/oca-addons-repo-template
+ci: GitHub
+dependency_installation_mode: PIP
+generate_requirements_txt: true
+github_check_license: true
+github_enable_codecov: false
+github_enable_makepot: true
+github_enable_stale_action: false
+github_enable_tests: true
+github_enable_transbot: false
+github_enable_workflow: true
+github_org: Nathan-Gobbi
+include_wkhtmltopdf: false
+odoo_version: 18.0
+org_name: Nathan Gobbi
+org_slug: nathan-gobbi
+rebel_module_groups: []
+repo_description: Assistente de IA seguro e somente leitura para consultas no Odoo
+repo_name: app-agente-ia
+repo_slug: app-agente-ia
+travis_apt_packages: []
+travis_apt_sources: []

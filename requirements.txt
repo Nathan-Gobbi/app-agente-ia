@@ -1,0 +1,2 @@
+# generated from manifests external_dependencies
+pydantic-ai-slim[openai]>=1.0,<2.0

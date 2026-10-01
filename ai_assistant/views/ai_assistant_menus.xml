@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<!-- Copyright 2026 Nathan Gobbi
+     License AGPL-3.0 or later (https://www.gnu.org/licenses/agpl). -->
+<odoo>
+    <menuitem
+        id="ai_assistant_menu_root"
+        name="Assistente IA"
+        action="ai_assistant_conversation_action"
+        groups="ai_assistant.group_ai_assistant_user"
+        sequence="45"
+    />
+</odoo>
