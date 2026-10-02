@@ -1,4 +1,5 @@
 - Add asynchronous jobs so API calls do not hold an HTTP worker.
 - Add tools for customers, purchases, invoices, and workshop orders.
 - Add provider adapters for local models and other APIs.
+- Publish companion addons with tools for accounting, purchasing, and workshops.
 - Add explicit approval workflows before any future write tool.

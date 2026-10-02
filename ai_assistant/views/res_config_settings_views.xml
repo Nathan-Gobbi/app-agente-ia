@@ -20,6 +20,31 @@
                             <field name="ai_assistant_openai_model" />
                         </setting>
                     </block>
+                    <block title="Assistant Context">
+                        <setting
+                            string="Business context"
+                            help="Explain your business and terminology to the assistant."
+                        >
+                            <field
+                                name="ai_assistant_business_context"
+                                placeholder="Example: We are a car repair shop. Products are parts and services..."
+                            />
+                        </setting>
+                    </block>
+                    <block title="Read-only Tools">
+                        <setting
+                            string="Products and prices"
+                            help="Search products, prices, SKUs, barcodes, and optional stock."
+                        >
+                            <field name="ai_assistant_enable_product_tool" />
+                        </setting>
+                        <setting
+                            string="Sales analysis"
+                            help="Analyze confirmed sales by period and product."
+                        >
+                            <field name="ai_assistant_enable_sales_tool" />
+                        </setting>
+                    </block>
                 </app>
             </xpath>
         </field>

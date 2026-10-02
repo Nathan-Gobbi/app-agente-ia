@@ -12,7 +12,7 @@
     "development_status": "Beta",
     "application": True,
     "installable": True,
-    "depends": ["base_setup", "sale_stock"],
+    "depends": ["base_setup"],
     "external_dependencies": {"python": ["pydantic-ai-slim[openai]>=1.0,<2.0"]},
     "data": [
         "security/ai_assistant_security.xml",

@@ -22,16 +22,19 @@ Odoo AI Assistant
 
 |badge1| |badge2| |badge3|
 
-This module adds a read-only AI assistant specialized in your Odoo ERP
-data.
+This module adds a read-only AI assistant that can be installed in any
+Odoo 18 database, regardless of its business vertical.
 
-The assistant uses typed tools backed by the Odoo ORM. It can rank sold
-products, summarize confirmed sales, and find products and stock without
-exposing arbitrary models, fields, SQL, or write operations to the
-language model.
+The assistant uses typed tools backed by the Odoo ORM. Available tools
+are discovered from installed Odoo apps and can be enabled by an
+administrator. Product searches return sale prices and, when Inventory
+is installed, stock. Sales tools are available only when Sales is
+installed.
 
-Conversation records provide an audit trail and follow the current
-user's Odoo permissions and active company.
+Conversation records provide an audit trail. Every business query runs
+with the current user's Odoo permissions, record rules, active company,
+and accessible fields. Extension addons can register tools for their own
+business models.
 
 **Table of contents**
 
@@ -43,6 +46,11 @@ Configuration
 
 Go to **Settings > Odoo AI**, set the OpenAI API key and choose the
 model identifier.
+
+Describe the business in **Business context** and enable only the
+read-only tools the assistant should use. Product and sales tools
+activate only when their corresponding Odoo apps and models are
+installed.
 
 For deployments, prefer the ``OPENAI_API_KEY`` environment variable. It
 takes precedence over the value stored in Odoo. The Odoo container must
@@ -56,7 +64,7 @@ example:
 
 - Which SKU sold the most on 25/06/2026?
 - What was the confirmed sales revenue last week?
-- What is the current stock for products containing "chain"?
+- What is the sale price and current stock for the red TSW grip?
 
 Only confirmed sales (``sale`` and ``done``) are included. Date filters
 use the current user's timezone.
@@ -67,6 +75,8 @@ Known issues / Roadmap
 - Add asynchronous jobs so API calls do not hold an HTTP worker.
 - Add tools for customers, purchases, invoices, and workshop orders.
 - Add provider adapters for local models and other APIs.
+- Publish companion addons with tools for accounting, purchasing, and
+  workshops.
 - Add explicit approval workflows before any future write tool.
 
 Bug Tracker

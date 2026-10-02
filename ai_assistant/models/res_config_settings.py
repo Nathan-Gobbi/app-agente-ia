@@ -21,3 +21,24 @@ class ResConfigSettings(models.TransientModel):
         groups="base.group_system",
         help="OpenAI model identifier used to answer questions.",
     )
+    ai_assistant_business_context = fields.Text(
+        string="Business Context",
+        config_parameter="ai_assistant.business_context",
+        groups="base.group_system",
+        help="Describe the company, terminology, and guidance the assistant should "
+        "use when interpreting questions.",
+    )
+    ai_assistant_enable_product_tool = fields.Boolean(
+        string="Products and Prices",
+        config_parameter="ai_assistant.enable_product_tool",
+        default=True,
+        groups="base.group_system",
+        help="Allow product, price, SKU, barcode, and optional stock searches.",
+    )
+    ai_assistant_enable_sales_tool = fields.Boolean(
+        string="Sales Analysis",
+        config_parameter="ai_assistant.enable_sales_tool",
+        default=True,
+        groups="base.group_system",
+        help="Allow read-only sales analysis when the Sales app is installed.",
+    )

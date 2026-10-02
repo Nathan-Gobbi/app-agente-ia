@@ -12,13 +12,15 @@ from odoo import _, api, models
 from odoo.exceptions import UserError
 
 SYSTEM_PROMPT = """You are a read-only data assistant specialized in the company's
-Odoo 18 ERP. Answer in Brazilian Portuguese, clearly and briefly.
-You must use the provided tools for every factual claim about the company. Never
-invent records, totals, SKUs or stock. Never claim that you changed data. Dates are
+Odoo ERP. Answer in the user's language, clearly and briefly. You must use the
+provided tools for every factual claim about the company. Never invent records,
+totals, SKUs, prices, or stock. Never claim that you changed data. Dates are
 interpreted in the user's timezone. If the user omits the year, use the current year
 and explicitly state that assumption. Sales mean confirmed sale orders only. Explain
 which date range and metric were used. If a request is outside the available tools,
-say what cannot be consulted instead of guessing.
+say what cannot be consulted instead of guessing. Tool availability depends on the
+apps installed in this Odoo and on administrator settings. All queries are executed
+with the current user's permissions and record rules.
 """
 
 
@@ -50,7 +52,6 @@ class AiAssistantService(models.AbstractModel):
             .sudo()
             .get_param("ai_assistant.openai_model", "gpt-4.1-mini")
         )
-
         try:
             from pydantic_ai import Agent, RunContext
             from pydantic_ai.models.openai import OpenAIModel
@@ -75,44 +76,11 @@ class AiAssistantService(models.AbstractModel):
             system_prompt=(
                 f"{SYSTEM_PROMPT}\nToday is {date.today().isoformat()}. "
                 f"Company: {dependencies.company_name}. "
-                f"Timezone: {dependencies.timezone}."
+                f"Timezone: {dependencies.timezone}. "
+                f"Business context: {self._business_context()}"
             ),
         )
-
-        @agent.tool
-        def top_selling_products(
-            ctx: RunContext[AiAssistantDependencies],
-            start_date: date,
-            end_date: date | None = None,
-            limit: int = 5,
-        ) -> str:
-            """Rank products sold in a date or inclusive date range.
-
-            Args:
-                start_date: First local calendar date included.
-                end_date: Last local calendar date included; defaults to start_date.
-                limit: Maximum number of products, from 1 through 20.
-            """
-            return self._top_selling_products(
-                ctx.deps, start_date, end_date or start_date, limit
-            )
-
-        @agent.tool
-        def sales_summary(
-            ctx: RunContext[AiAssistantDependencies],
-            start_date: date,
-            end_date: date | None = None,
-        ) -> str:
-            """Return confirmed sales totals for an inclusive local date range."""
-            return self._sales_summary(ctx.deps, start_date, end_date or start_date)
-
-        @agent.tool
-        def find_products(
-            ctx: RunContext[AiAssistantDependencies], query: str, limit: int = 10
-        ) -> str:
-            """Find products by SKU, barcode or name and return their stock."""
-            return self._find_products(ctx.deps, query, limit)
-
+        self._register_tools(agent, RunContext)
         history = [
             {"role": message.role, "content": message.content}
             for message in conversation.message_ids[-10:]
@@ -123,6 +91,81 @@ class AiAssistantService(models.AbstractModel):
         )
         result = agent.run_sync(prompt, deps=dependencies)
         return result.output
+
+    @api.model
+    def _business_context(self):
+        return (
+            self.env["ir.config_parameter"]
+            .sudo()
+            .get_param(
+                "ai_assistant.business_context",
+                "No additional business context was configured.",
+            )
+        )
+
+    @api.model
+    def _setting_enabled(self, key, default=True):
+        value = self.env["ir.config_parameter"].sudo().get_param(key)
+        if value in (False, None, ""):
+            return default
+        return str(value).lower() in {"1", "true", "yes", "on"}
+
+    @api.model
+    def _model_available(self, model_name):
+        return model_name in self.env.registry.models
+
+    @api.model
+    def _register_tools(self, agent, run_context_class):
+        """Register tools that are enabled and available in this Odoo registry.
+
+        Extension addons can inherit this method, call ``super()``, and register
+        tools for their own business models. Tools must use ``ctx.deps.env`` so
+        Odoo access rights and record rules remain in force.
+        """
+        product_enabled = self._setting_enabled("ai_assistant.enable_product_tool")
+        if product_enabled and self._model_available("product.product"):
+
+            @agent.tool
+            def find_products(
+                ctx: run_context_class[AiAssistantDependencies],
+                query: str,
+                limit: int = 10,
+            ) -> str:
+                """Find products by name, SKU, or barcode and return sale prices.
+
+                Stock on hand and forecast quantities are also returned when the
+                Inventory app provides those fields.
+                """
+                return self._find_products(ctx.deps, query, limit)
+
+        sales_enabled = self._setting_enabled("ai_assistant.enable_sales_tool")
+        sales_available = self._model_available("sale.order") and self._model_available(
+            "sale.order.line"
+        )
+        if sales_enabled and sales_available:
+
+            @agent.tool
+            def top_selling_products(
+                ctx: run_context_class[AiAssistantDependencies],
+                start_date: date,
+                end_date: date | None = None,
+                limit: int = 5,
+            ) -> str:
+                """Rank products sold in an inclusive local date range."""
+                return self._top_selling_products(
+                    ctx.deps, start_date, end_date or start_date, limit
+                )
+
+            @agent.tool
+            def sales_summary(
+                ctx: run_context_class[AiAssistantDependencies],
+                start_date: date,
+                end_date: date | None = None,
+            ) -> str:
+                """Return confirmed sales totals for an inclusive local date range."""
+                return self._sales_summary(ctx.deps, start_date, end_date or start_date)
+
+        return agent
 
     @api.model
     def _date_domain(self, dependencies, start_date, end_date):
@@ -151,11 +194,11 @@ class AiAssistantService(models.AbstractModel):
         limit = max(1, min(int(limit), 20))
         domain = self._date_domain(dependencies, start_date, end_date) + [
             ("order_id.state", "in", ["sale", "done"]),
-            ("order_id.company_id", "=", self.env.company.id),
+            ("order_id.company_id", "=", dependencies.env.company.id),
             ("display_type", "=", False),
             ("product_id", "!=", False),
         ]
-        groups = self.env["sale.order.line"].read_group(
+        groups = dependencies.env["sale.order.line"].read_group(
             domain,
             ["product_uom_qty:sum", "price_subtotal:sum"],
             ["product_id"],
@@ -164,7 +207,7 @@ class AiAssistantService(models.AbstractModel):
             lazy=False,
         )
         products = (
-            self.env["product.product"]
+            dependencies.env["product.product"]
             .browse([group["product_id"][0] for group in groups])
             .exists()
         )
@@ -195,10 +238,10 @@ class AiAssistantService(models.AbstractModel):
     def _sales_summary(self, dependencies, start_date, end_date):
         line_domain = self._date_domain(dependencies, start_date, end_date) + [
             ("order_id.state", "in", ["sale", "done"]),
-            ("order_id.company_id", "=", self.env.company.id),
+            ("order_id.company_id", "=", dependencies.env.company.id),
             ("display_type", "=", False),
         ]
-        groups = self.env["sale.order.line"].read_group(
+        groups = dependencies.env["sale.order.line"].read_group(
             line_domain,
             ["product_uom_qty:sum", "price_subtotal:sum"],
             [],
@@ -207,7 +250,7 @@ class AiAssistantService(models.AbstractModel):
         totals = groups[0] if groups else {}
         order_domain = [
             ("state", "in", ["sale", "done"]),
-            ("company_id", "=", self.env.company.id),
+            ("company_id", "=", dependencies.env.company.id),
         ]
         for field_name, operator, value in self._date_domain(
             dependencies, start_date, end_date
@@ -216,7 +259,9 @@ class AiAssistantService(models.AbstractModel):
         return json.dumps(
             {
                 "period": [start_date.isoformat(), end_date.isoformat()],
-                "confirmed_orders": self.env["sale.order"].search_count(order_domain),
+                "confirmed_orders": dependencies.env["sale.order"].search_count(
+                    order_domain
+                ),
                 "ordered_quantity": totals.get("product_uom_qty", 0.0),
                 "untaxed_revenue": totals.get("price_subtotal", 0.0),
             },
@@ -225,31 +270,48 @@ class AiAssistantService(models.AbstractModel):
 
     @api.model
     def _find_products(self, dependencies, query, limit=10):
-        del dependencies
         limit = max(1, min(int(limit), 20))
         query = (query or "").strip()
         if len(query) < 2:
             raise ValueError("query must have at least two characters")
-        products = self.env["product.product"].search(
-            [
-                "|",
-                "|",
-                ("default_code", "ilike", query),
-                ("barcode", "ilike", query),
-                ("name", "ilike", query),
-            ],
-            limit=limit,
-        )
-        return json.dumps(
-            [
+        product_model = dependencies.env["product.product"]
+        available_fields = product_model.fields_get()
+        search_fields = [
+            field_name
+            for field_name in ("default_code", "barcode", "name")
+            if field_name in available_fields
+        ]
+        conditions = [(field_name, "ilike", query) for field_name in search_fields]
+        domain = ["|"] * (len(conditions) - 1) + conditions
+        products = product_model.search(domain, limit=limit)
+        currency = dependencies.env.company.currency_id
+        rows = []
+        for product in products:
+            rows.append(
                 {
-                    "sku": product.default_code or "sem SKU",
-                    "barcode": product.barcode or "",
+                    "sku": (
+                        product.default_code or "sem SKU"
+                        if "default_code" in available_fields
+                        else ""
+                    ),
+                    "barcode": (
+                        product.barcode or "" if "barcode" in available_fields else ""
+                    ),
                     "product": product.display_name,
-                    "on_hand": product.qty_available,
-                    "forecast": product.virtual_available,
+                    "sale_price": (
+                        product.lst_price if "lst_price" in available_fields else None
+                    ),
+                    "currency": currency.name,
+                    "on_hand": (
+                        product.qty_available
+                        if "qty_available" in available_fields
+                        else None
+                    ),
+                    "forecast": (
+                        product.virtual_available
+                        if "virtual_available" in available_fields
+                        else None
+                    ),
                 }
-                for product in products
-            ],
-            ensure_ascii=False,
-        )
+            )
+        return json.dumps(rows, ensure_ascii=False)
